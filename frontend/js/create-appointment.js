@@ -34,7 +34,12 @@ async function loadScheduleInfo() {
     const dayNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const whResp = await api.listWorkingHours().catch(() => []);
     const exceptions = await api.listScheduleExceptions().catch(() => []);
-    const rules = Array.isArray(whResp) ? whResp : (whResp && whResp.data) || [];
+    const baseRules = Array.isArray(whResp) ? whResp : (whResp && whResp.data) || [];
+    // Normalize day_of_week to ensure 0 (Sunday) is treated as valid, not falsy
+    const rules = baseRules.map(r => ({
+      ...r,
+      day_of_week: r.day_of_week !== null && r.day_of_week !== undefined ? Number(r.day_of_week) : null
+    }));
     const exList = Array.isArray(exceptions) ? exceptions : (exceptions && exceptions.data) || [];
 
     if (!rules.length) { scheduleEl.classList.add('d-none'); return; }
@@ -109,7 +114,12 @@ if (form) {
       const whResp = await api.listWorkingHours().catch(() => []);
       const exceptions = await api.listScheduleExceptions().catch(() => []);
       const apps = await api.getAppointmentsByDate(date).catch(() => []);
-      const rules = Array.isArray(whResp) ? whResp : (whResp && whResp.data) || [];
+      const baseRules = Array.isArray(whResp) ? whResp : (whResp && whResp.data) || [];
+      // Normalize day_of_week to ensure 0 (Sunday) is treated as valid
+      const rules = baseRules.map(r => ({
+        ...r,
+        day_of_week: r.day_of_week !== null && r.day_of_week !== undefined ? Number(r.day_of_week) : null
+      }));
       const exList = Array.isArray(exceptions) ? exceptions : (exceptions && exceptions.data) || [];
       const taken = Array.isArray(apps) ? apps.map(a => String(a.time).slice(0,5)) : [];
 

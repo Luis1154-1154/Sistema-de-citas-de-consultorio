@@ -10,16 +10,23 @@ function formatTime(timeStr) {
 function buildScheduleText(workingHours) {
   if (!workingHours || workingHours.length === 0) return null;
 
-  // Filter: if there are specific day rules with same time as a null (all days) rule,
-  // only show the specific ones to avoid duplicates
-  const hasSpecificDays = workingHours.some(wh => wh.day_of_week !== null && wh.day_of_week !== undefined);
+  // Normalize day_of_week to ensure 0 is treated as valid (Sunday), not falsy
+  const normalized = workingHours.map(wh => ({
+    ...wh,
+    day_of_week: wh.day_of_week !== null && wh.day_of_week !== undefined ? Number(wh.day_of_week) : null
+  }));
+
+  // Filter: if there are specific day rules, only show the specific ones (avoid duplicates with "all days" rules)
+  const hasSpecificDays = normalized.some(wh => wh.day_of_week !== null);
   const filtered = hasSpecificDays
-    ? workingHours.filter(wh => wh.day_of_week !== null && wh.day_of_week !== undefined)
-    : workingHours;
+    ? normalized.filter(wh => wh.day_of_week !== null)
+    : normalized;
 
   // Sort by day_of_week
   const sorted = [...filtered].sort((a, b) => {
-    return (a.day_of_week || 0) - (b.day_of_week || 0);
+    const aDay = a.day_of_week !== null ? Number(a.day_of_week) : 0;
+    const bDay = b.day_of_week !== null ? Number(b.day_of_week) : 0;
+    return aDay - bDay;
   });
 
   // Show each rule individually
@@ -31,7 +38,8 @@ function buildScheduleText(workingHours) {
     if (wh.day_of_week === null || wh.day_of_week === undefined) {
       daysStr = 'todos los días';
     } else {
-      daysStr = DAY_NAMES_SHORT[wh.day_of_week];
+      const dayIndex = Number(wh.day_of_week);
+      daysStr = DAY_NAMES_SHORT[dayIndex] || `día ${dayIndex}`;
     }
 
     daysStr = daysStr.charAt(0).toUpperCase() + daysStr.slice(1);

@@ -293,10 +293,16 @@ async function loadScheduleAdmin() {
     const summaryEl = document.getElementById('schedule-summary');
     if (summaryEl) {
       if (list.length) {
-        const lines = list.map(w => `${formatDayLabel(w.day_of_week)}: ${formatTimeDisplay(w.start_time)} - ${formatTimeDisplay(w.end_time)}${w.break_start ? ' (descanso ' + formatTimeDisplay(w.break_start) + ' - ' + formatTimeDisplay(w.break_end || '') + ')' : ''}`);
+        // Ensure day_of_week is treated as number, not string
+        const normalizedList = list.map(w => ({ ...w, day_of_week: w.day_of_week !== null && w.day_of_week !== undefined ? Number(w.day_of_week) : null }));
+        const lines = normalizedList.map(w => `${formatDayLabel(w.day_of_week)}: ${formatTimeDisplay(w.start_time)} - ${formatTimeDisplay(w.end_time)}${w.break_start ? ' (descanso ' + formatTimeDisplay(w.break_start) + ' - ' + formatTimeDisplay(w.break_end || '') + ')' : ''}`);
         const exceptions = await api.listScheduleExceptions().catch(() => []);
         const exList2 = Array.isArray(exceptions) ? exceptions : (exceptions && exceptions.data) || [];
-        const exLines = exList2.map(e => `${e.exception_date}${e.start_time ? ' ' + e.start_time.slice(0,5) + '-' + (e.end_time||'').slice(0,5) : ' (cerrado)'}`);
+        const exLines = exList2.map(e => {
+          const dateStr = String(e.exception_date).slice(0, 10);
+          const timeRange = e.start_time ? ` ${e.start_time.slice(0,5)}-${(e.end_time||'').slice(0,5)}` : ' (cerrado)';
+          return `${dateStr}${timeRange}`;
+        });
         const allLines = [...lines, ...(exLines.length ? ['', 'Excepciones:', ...exLines] : [])];
         summaryEl.innerHTML = allLines.map(l => `<div class="mb-1">${l}</div>`).join('');
       } else {
@@ -306,7 +312,8 @@ async function loadScheduleAdmin() {
 
     // Update the working hours list
     if (container) {
-      container.innerHTML = list.length ? list.map(w => {
+      const normalizedListForDisplay = list.map(w => ({ ...w, day_of_week: w.day_of_week !== null && w.day_of_week !== undefined ? Number(w.day_of_week) : null }));
+      container.innerHTML = normalizedListForDisplay.length ? normalizedListForDisplay.map(w => {
         return `<div class="d-flex align-items-center gap-2 mb-2"><div class="flex-grow-1 small">${formatDayLabel(w.day_of_week)} ${formatTimeDisplay(w.start_time)} - ${formatTimeDisplay(w.end_time)}${w.break_start ? ' (descanso ' + formatTimeDisplay(w.break_start) + ' - ' + formatTimeDisplay(w.break_end || '') + ')' : ''}</div><button class="btn btn-sm btn-outline-danger" data-delete-wh="${w.id}">Eliminar</button></div>`;
       }).join('') : '<div class="text-muted small">No hay reglas de horario.</div>';
     }
@@ -316,7 +323,11 @@ async function loadScheduleAdmin() {
     const exList = Array.isArray(exceptions) ? exceptions : (exceptions && exceptions.data) || [];
     const exContainer = document.getElementById('exceptions-list');
     if (exContainer) {
-      exContainer.innerHTML = exList.length ? exList.map(e => `<div class="d-flex align-items-center gap-2 mb-2"><div class="flex-grow-1 small">${e.exception_date} ${e.start_time||''}-${e.end_time||''} ${e.reason||''}</div><button class="btn btn-sm btn-outline-danger" data-delete-ex="${e.id}">Eliminar</button></div>`).join('') : '<div class="text-muted small">No hay excepciones.</div>';
+      exContainer.innerHTML = exList.length ? exList.map(e => {
+        const dateStr = String(e.exception_date).slice(0, 10);
+        const timeRange = e.start_time && e.end_time ? ` ${e.start_time.slice(0,5)}-${e.end_time.slice(0,5)}` : (e.start_time || e.end_time) ? ` ${(e.start_time||e.end_time).slice(0,5)}` : ' (cerrado)';
+        return `<div class="d-flex align-items-center gap-2 mb-2"><div class="flex-grow-1 small">${dateStr}${timeRange}${e.reason ? ' (' + e.reason + ')' : ''}</div><button class="btn btn-sm btn-outline-danger" data-delete-ex="${e.id}">Eliminar</button></div>`;
+      }).join('') : '<div class="text-muted small">No hay excepciones.</div>';
     }
   } catch (err) {
     // ignore
