@@ -243,6 +243,9 @@ async function wireAppointmentInteractions(container, feedback, refresh) {
 async function loadScheduleAdmin() {
   const feedback = document.querySelector('[data-admin-feedback]');
   if (!feedback) return;
+  const whForm = document.getElementById('working-hour-form');
+  const submitBtn = whForm ? whForm.querySelector('button[type="submit"]') : null;
+  if (whForm && whForm.dataset.saving === 'true') return;
 
   function isAllDaysRule(day) {
     return day === null || day === undefined || (typeof day === 'string' && day.trim() === '');
@@ -391,7 +394,8 @@ async function wireScheduleForms() {
 
   // "Todos" checkbox toggle
   const allCheck = document.getElementById('wh-day-all');
-  if (allCheck) {
+  if (allCheck && !allCheck.dataset.wired) {
+    allCheck.dataset.wired = 'true';
     allCheck.addEventListener('change', () => {
       document.querySelectorAll('.wh-day-cb').forEach(cb => cb.checked = allCheck.checked);
     });
@@ -404,25 +408,37 @@ async function wireScheduleForms() {
   }
 
   // Wire working hour form submit
-  const whForm = document.getElementById('working-hour-form');
-  if (whForm) {
+  if (whForm && !whForm.dataset.wired) {
+    whForm.dataset.wired = 'true';
     whForm.addEventListener('submit', async (ev) => {
       ev.preventDefault();
+      if (whForm.dataset.saving === 'true') return;
+      whForm.dataset.saving = 'true';
+      if (submitBtn) submitBtn.disabled = true;
       const allDayCheckboxes = Array.from(document.querySelectorAll('.wh-day-cb'));
       const checkedDays = allDayCheckboxes
         .filter(cb => cb.checked)
         .map(cb => Number(cb.value))
         .filter(day => Number.isInteger(day));
+      const uniqueCheckedDays = [...new Set(checkedDays)];
       const start = String(document.getElementById('wh-start')?.value || '').trim();
       const end = String(document.getElementById('wh-end')?.value || '').trim();
       const breakStart = String(document.getElementById('wh-break-start')?.value || '').trim();
       const breakEnd = String(document.getElementById('wh-break-end')?.value || '').trim();
-      if (!start || !end) return showMessage(feedback, 'Inicio y fin son obligatorios');
+      if (!start || !end) {
+        whForm.dataset.saving = 'false';
+        if (submitBtn) submitBtn.disabled = false;
+        return showMessage(feedback, 'Inicio y fin son obligatorios');
+      }
 
       const allChecked = Boolean(allCheck && allCheck.checked);
-      const days = allChecked ? [null] : checkedDays;
+      const days = allChecked ? [null] : uniqueCheckedDays;
 
-      if (!allChecked && checkedDays.length === 0) return showMessage(feedback, 'Selecciona al menos un día');
+      if (!allChecked && uniqueCheckedDays.length === 0) {
+        whForm.dataset.saving = 'false';
+        if (submitBtn) submitBtn.disabled = false;
+        return showMessage(feedback, 'Selecciona al menos un día');
+      }
       
       try {
         // Save appointment interval
@@ -434,22 +450,22 @@ async function wireScheduleForms() {
         if (!allChecked) {
           const existingWh = await api.listWorkingHours();
           const existingRules = Array.isArray(existingWh) ? existingWh : (existingWh && existingWh.data) || [];
-          if (Array.isArray(existingRules)) {
-            for (const rule of existingRules) {
-              if (rule.day_of_week === null || rule.day_of_week === undefined || (typeof rule.day_of_week === 'string' && rule.day_of_week.trim() === '')) {
-                await api.deleteWorkingHour(rule.id);
-              }
-            }
-          }
+          const allDayRuleIds = Array.isArray(existingRules)
+            ? existingRules
+                .filter(rule => rule.day_of_week === null || rule.day_of_week === undefined || (typeof rule.day_of_week === 'string' && rule.day_of_week.trim() === ''))
+                .map(rule => rule.id)
+            : [];
+          await Promise.all(allDayRuleIds.map(id => api.deleteWorkingHour(id)));
         }
         // Create the new rules
-        for (const day of days) {
-          await api.createWorkingHour({ day_of_week: day, start_time: start, end_time: end, break_start: breakStart || null, break_end: breakEnd || null, applies_forever: true, active: true });
-        }
+        await Promise.all(days.map(day => api.createWorkingHour({ day_of_week: day, start_time: start, end_time: end, break_start: breakStart || null, break_end: breakEnd || null, applies_forever: true, active: true })));
         showMessage(feedback, 'Regla(s) guardada(s)', 'success');
         loadScheduleAdmin();
       } catch (err) {
         showMessage(feedback, err.message);
+      } finally {
+        whForm.dataset.saving = 'false';
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   }
