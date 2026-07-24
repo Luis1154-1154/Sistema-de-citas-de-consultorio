@@ -1,0 +1,3 @@
+[33meed701a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;31mclinic/main[m[33m, [m[1;31mclinic/HEAD[m[33m)[m Fix exception bug: add break columns to PostgreSQL migration
+[33m5e6c99a[m Fix white box in create appointment: use dark theme bg instead of bg-light
+[33m035eba0[m Add break_start/break_end fields to exception form, model, migration, and display

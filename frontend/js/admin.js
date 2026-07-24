@@ -244,9 +244,26 @@ async function loadScheduleAdmin() {
   const feedback = document.querySelector('[data-admin-feedback]');
   if (!feedback) return;
 
+  function isAllDaysRule(day) {
+    return day === null || day === undefined || (typeof day === 'string' && day.trim() === '');
+  }
+
+  function normalizeRuleDay(rule) {
+    if (isAllDaysRule(rule.day_of_week)) {
+      return { ...rule, day_of_week: null };
+    }
+    return { ...rule, day_of_week: Number(rule.day_of_week) };
+  }
+
+  function filterRulesForDisplay(rules) {
+    const normalized = rules.map(normalizeRuleDay);
+    const hasSpecificDays = normalized.some(r => !isAllDaysRule(r.day_of_week));
+    return hasSpecificDays ? normalized.filter(r => !isAllDaysRule(r.day_of_week)) : normalized;
+  }
+
   function formatDayLabel(day) {
     const dayNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-    if (day === null || day === undefined || day === '') return 'Todos los días';
+    if (isAllDaysRule(day)) return 'Todos los días';
     const n = Number(day);
     return Number.isNaN(n) ? `Día ${day}` : dayNames[n] || `Día ${day}`;
   }
@@ -288,13 +305,13 @@ async function loadScheduleAdmin() {
   try {
     const wh = await api.listWorkingHours();
     const list = Array.isArray(wh) ? wh : (wh && wh.data) || [];
+    const rulesForDisplay = filterRulesForDisplay(list);
     const container = document.getElementById('working-hours-list');
     // Build schedule summary string
     const summaryEl = document.getElementById('schedule-summary');
     if (summaryEl) {
-      if (list.length) {
-        // Ensure day_of_week is treated as number, not string
-        const normalizedList = list.map(w => ({ ...w, day_of_week: w.day_of_week !== null && w.day_of_week !== undefined ? Number(w.day_of_week) : null }));
+      if (rulesForDisplay.length) {
+        const normalizedList = rulesForDisplay;
         const lines = normalizedList.map(w => `${formatDayLabel(w.day_of_week)}: ${formatTimeDisplay(w.start_time)} - ${formatTimeDisplay(w.end_time)}${w.break_start ? ' (descanso ' + formatTimeDisplay(w.break_start) + ' - ' + formatTimeDisplay(w.break_end || '') + ')' : ''}`);
         const exceptions = await api.listScheduleExceptions().catch(() => []);
         const exList2 = Array.isArray(exceptions) ? exceptions : (exceptions && exceptions.data) || [];
@@ -312,7 +329,7 @@ async function loadScheduleAdmin() {
 
     // Update the working hours list
     if (container) {
-      const normalizedListForDisplay = list.map(w => ({ ...w, day_of_week: w.day_of_week !== null && w.day_of_week !== undefined ? Number(w.day_of_week) : null }));
+      const normalizedListForDisplay = rulesForDisplay;
       container.innerHTML = normalizedListForDisplay.length ? normalizedListForDisplay.map(w => {
         return `<div class="d-flex align-items-center gap-2 mb-2"><div class="flex-grow-1 small">${formatDayLabel(w.day_of_week)} ${formatTimeDisplay(w.start_time)} - ${formatTimeDisplay(w.end_time)}${w.break_start ? ' (descanso ' + formatTimeDisplay(w.break_start) + ' - ' + formatTimeDisplay(w.break_end || '') + ')' : ''}</div><button class="btn btn-sm btn-outline-danger" data-delete-wh="${w.id}">Eliminar</button></div>`;
       }).join('') : '<div class="text-muted small">No hay reglas de horario.</div>';
@@ -380,7 +397,8 @@ async function wireScheduleForms() {
     });
     document.querySelectorAll('.wh-day-cb').forEach(cb => {
       cb.addEventListener('change', () => {
-        if (!cb.checked) allCheck.checked = false;
+        const allDayCheckboxes = Array.from(document.querySelectorAll('.wh-day-cb'));
+        allCheck.checked = allDayCheckboxes.length > 0 && allDayCheckboxes.every(dayCb => dayCb.checked);
       });
     });
   }
@@ -390,16 +408,20 @@ async function wireScheduleForms() {
   if (whForm) {
     whForm.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const checkedDays = Array.from(document.querySelectorAll('.wh-day-cb:checked')).map(cb => cb.value);
+      const allDayCheckboxes = Array.from(document.querySelectorAll('.wh-day-cb'));
+      const checkedDays = allDayCheckboxes
+        .filter(cb => cb.checked)
+        .map(cb => Number(cb.value))
+        .filter(day => Number.isInteger(day));
       const start = String(document.getElementById('wh-start')?.value || '').trim();
       const end = String(document.getElementById('wh-end')?.value || '').trim();
       const breakStart = String(document.getElementById('wh-break-start')?.value || '').trim();
       const breakEnd = String(document.getElementById('wh-break-end')?.value || '').trim();
       if (!start || !end) return showMessage(feedback, 'Inicio y fin son obligatorios');
-      
-      const allChecked = allCheck && allCheck.checked || checkedDays.length >= 7;
-      const days = allChecked ? [null] : checkedDays.map(Number);
-      
+
+      const allChecked = Boolean(allCheck && allCheck.checked);
+      const days = allChecked ? [null] : checkedDays;
+
       if (!allChecked && checkedDays.length === 0) return showMessage(feedback, 'Selecciona al menos un día');
       
       try {
@@ -411,9 +433,10 @@ async function wireScheduleForms() {
         // Delete all "all days" rules before creating specific ones
         if (!allChecked) {
           const existingWh = await api.listWorkingHours();
-          if (Array.isArray(existingWh)) {
-            for (const rule of existingWh) {
-              if (rule.day_of_week === null || rule.day_of_week === undefined) {
+          const existingRules = Array.isArray(existingWh) ? existingWh : (existingWh && existingWh.data) || [];
+          if (Array.isArray(existingRules)) {
+            for (const rule of existingRules) {
+              if (rule.day_of_week === null || rule.day_of_week === undefined || (typeof rule.day_of_week === 'string' && rule.day_of_week.trim() === '')) {
                 await api.deleteWorkingHour(rule.id);
               }
             }

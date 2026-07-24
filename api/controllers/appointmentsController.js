@@ -2,6 +2,12 @@ const Appointments = require('../models/Appointments');
 const Usuario = require('../models/Usuarios');
 const Schedule = require('../models/Schedule');
 
+function normalizeDayOfWeek(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const day = Number(value);
+  return Number.isNaN(day) ? null : day;
+}
+
 exports.createForUser = (req, res) => {
   const user = req.user;
   // Debug logging: record auth headers and resolved user for deployed troubleshooting
@@ -337,7 +343,11 @@ function checkAvailability(date, time, callback) {
     const targetDay = new Date(date).getDay(); // 0-6
     Schedule.listWorkingHours((whErr, rules) => {
       if (whErr) return callback(whErr);
-      const candidates = (rules || []).filter(r => r.active == 1 && (r.day_of_week === null || r.day_of_week === undefined || Number(r.day_of_week) === targetDay || r.day_of_week === 0 && targetDay === 0 || r.day_of_week === '0' && targetDay === 0));
+      const candidates = (rules || []).filter((r) => {
+        if (r.active != 1) return false;
+        const ruleDay = normalizeDayOfWeek(r.day_of_week);
+        return ruleDay === null || ruleDay === targetDay;
+      });
       let allowedByRule = false;
       for (const r of candidates) {
         const start = r.start_time;

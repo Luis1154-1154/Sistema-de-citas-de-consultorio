@@ -1,5 +1,11 @@
 const db = require('../config/db');
 
+function normalizeDayOfWeek(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const day = Number(value);
+  return Number.isNaN(day) ? null : day;
+}
+
 exports.getSetting = (key, callback) => {
   db.query('SELECT value FROM clinic_settings WHERE key = ?', [key], (err, rows) => {
     if (err) return callback(err);
@@ -36,12 +42,12 @@ exports.getWorkingHourById = (id, callback) => {
 
 exports.createWorkingHour = (rule, callback) => {
   db.query('INSERT INTO working_hours (day_of_week, start_time, end_time, break_start, break_end, applies_forever, active) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [rule.day_of_week ?? null, rule.start_time, rule.end_time, rule.break_start || null, rule.break_end || null, rule.applies_forever ? 1 : 0, rule.active ? 1 : 0], callback);
+    [normalizeDayOfWeek(rule.day_of_week), rule.start_time, rule.end_time, rule.break_start || null, rule.break_end || null, rule.applies_forever ? 1 : 0, rule.active ? 1 : 0], callback);
 };
 
 exports.updateWorkingHour = (id, rule, callback) => {
   db.query('UPDATE working_hours SET day_of_week = ?, start_time = ?, end_time = ?, break_start = ?, break_end = ?, applies_forever = ?, active = ? WHERE id = ?',
-    [rule.day_of_week ?? null, rule.start_time, rule.end_time, rule.break_start || null, rule.break_end || null, rule.applies_forever ? 1 : 0, rule.active ? 1 : 0, id], callback);
+    [normalizeDayOfWeek(rule.day_of_week), rule.start_time, rule.end_time, rule.break_start || null, rule.break_end || null, rule.applies_forever ? 1 : 0, rule.active ? 1 : 0, id], callback);
 };
 
 exports.deleteWorkingHour = (id, callback) => {
