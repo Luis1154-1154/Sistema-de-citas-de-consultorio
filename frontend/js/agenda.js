@@ -93,7 +93,7 @@ function showUserDetail(userId) {
         <span class="fw-semibold fs-6">Nueva cita</span>
         <button class="btn btn-sm btn-primary" id="agenda-create-toggle">+ Agregar</button>
       </div>
-      <form id="agenda-create-form" class="row g-2 d-none border rounded p-2 bg-light">
+      <form id="agenda-create-form" class="agenda-form-panel row g-2 d-none border rounded p-2">
         <div class="col-5">
           <label class="form-label small mb-0">Fecha</label>
           <input class="form-control form-control-sm" name="date" type="date" required />
@@ -152,7 +152,7 @@ function renderAppointmentCard(appointment, showActions) {
           ` : ''}
         </div>
         ${showActions && status === 'pending' ? `
-          <form class="reschedule-panel d-none mt-2 border rounded p-2 bg-light" data-reschedule-form="${id}">
+          <form class="agenda-form-panel reschedule-panel d-none mt-2 border rounded p-2" data-reschedule-form="${id}">
             <div class="row g-2 align-items-end">
               <div class="col-5">
                 <label class="form-label small mb-0">Nueva fecha</label>
